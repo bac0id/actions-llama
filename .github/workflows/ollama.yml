@@ -5,11 +5,20 @@ jobs:
   ollama:
     runs-on: ubuntu-latest
     steps:
+      - name: Add Swap
+        run: |
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Swap enabled:"
+          free -h
+
       - name: Run model
         uses: ai-action/ollama-action@v2
         id: model
         with:
-          model: qwen3-vl:4b
+          model: qwen3-vl:2b
           prompt: Explain the basics of machine learning.
 
       - name: Print response
