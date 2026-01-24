@@ -1,0 +1,18 @@
+on:
+  workflow_dispatch:
+
+jobs:
+  ollama:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run model
+        uses: ai-action/ollama-action@v2
+        id: model
+        with:
+          model: glm-4.7
+          prompt: Explain the basics of machine learning.
+
+      - name: Print response
+        run: echo "$response"
+        env:
+          response: ${{ steps.model.outputs.response }}
