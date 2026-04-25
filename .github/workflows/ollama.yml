@@ -18,7 +18,7 @@ jobs:
         uses: ai-action/ollama-action@v2
         id: model
         with:
-          model: qwen3-vl:2b
+          model: gemma4:e2b
           prompt: Explain the basics of machine learning.
 
       - name: Print response
