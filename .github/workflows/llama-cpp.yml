@@ -12,9 +12,9 @@ on:
         default: 'ggml-org/Qwen3.5-0.8B-GGUF'
         type: string
       swap_size:
-        description: 'Swap size in GB'
-        default: 8
-        type: number
+        description: 'Swap size'
+        default: '8G'
+        type: string
 
 jobs:
   llama-cpp:
@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Add Swap
         run: |
-          sudo dd if=/dev/zero of=/swapfile1 bs=1G count=${{ inputs.swap_size }} status=progress
+          sudo fallocate -l ${{ inputs.swap_size }} /swapfile1
           sudo chmod 600 /swapfile1
           sudo mkswap /swapfile1
           sudo swapon /swapfile1
