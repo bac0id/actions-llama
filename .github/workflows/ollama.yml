@@ -1,5 +1,20 @@
+name: Run ollama
+
 on:
   workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Prompt'
+        required: true
+        type: string
+      model:
+        description: 'Ollama model to run'
+        default: 'gemma4:e2b'
+        type: string
+      swap_size:
+        description: 'Swap size in GB'
+        default: 8
+        type: number
 
 jobs:
   ollama:
@@ -7,7 +22,7 @@ jobs:
     steps:
       - name: Add Swap
         run: |
-          sudo dd if=/dev/zero of=/swapfile1 bs=1G count=8 status=progress
+          sudo dd if=/dev/zero of=/swapfile1 bs=1G count=${{ inputs.swap_size }} status=progress
           sudo chmod 600 /swapfile1
           sudo mkswap /swapfile1
           sudo swapon /swapfile1
@@ -18,10 +33,13 @@ jobs:
         uses: ai-action/ollama-action@v2
         id: model
         with:
-          model: gemma4:e2b
-          prompt: Explain the basics of machine learning.
+          model: ${{ inputs.model }}
+          prompt: ${{ inputs.prompt }}
 
-      - name: Print response
-        run: echo "$response"
+      - name: Write to Step Summary
+        run: |
+          echo "### 🤖 Model Response" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "$response" >> $GITHUB_STEP_SUMMARY
         env:
           response: ${{ steps.model.outputs.response }}
