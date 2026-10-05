@@ -55,7 +55,4 @@ jobs:
         run: |
           echo "### 🤖 Model Response" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
-          # 3. 使用 printf 代替 echo，防止 LLM 输出以 "-n" 或 "-e" 开头时被误判为 echo 参数
           printf "%s\n" "$MODEL_RESPONSE" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
