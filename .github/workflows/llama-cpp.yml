@@ -40,21 +40,16 @@ jobs:
         id: model
         run: |
           # Run the model with the provided prompt.
-          # --single-turn ensures it exits after generating the response.
-          # --no-display-prompt prevents echoing the prompt in the output.
-          # stderr is redirected to /dev/null to keep the output clean, 
-          # remove 2>/dev/null if you want to see loading/progress logs in the action logs.
           RESPONSE=$(llama cli -hf "${{ inputs.model }}" -p "${{ inputs.prompt }}" --single-turn --no-display-prompt 2>/dev/null)
-          
+
+          DELIMITER="EOF_${RANDOM}${RANDOM}${RANDOM}${RANDOM}"
           # Use GitHub Actions multiline output syntax to safely capture the response
-          echo "response<<EOF" >> $GITHUB_OUTPUT
+          echo "response<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "$RESPONSE" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Write to Step Summary
+        env:
+          MODEL_RESPONSE: ${{ steps.model.outputs.response }}
         run: |
-          echo "### 🤖 Model Response" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.model.outputs.response }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          printf "%s\n" "$MODEL_RESPONSE" >> $GITHUB_STEP_SUMMARY
