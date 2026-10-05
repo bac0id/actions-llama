@@ -1,0 +1,60 @@
+name: Run llama.cpp
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Prompt'
+        required: true
+        type: string
+      model:
+        description: 'Hugging Face model repository (e.g., ggml-org/Qwen3.5-0.8B-GGUF)'
+        default: 'ggml-org/Qwen3.5-0.8B-GGUF'
+        type: string
+      swap_size:
+        description: 'Swap size in GB'
+        default: 8
+        type: number
+
+jobs:
+  llama-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add Swap
+        run: |
+          sudo dd if=/dev/zero of=/swapfile1 bs=1G count=${{ inputs.swap_size }} status=progress
+          sudo chmod 600 /swapfile1
+          sudo mkswap /swapfile1
+          sudo swapon /swapfile1
+          echo "Swap enabled:"
+          free -h
+
+      - name: Install llama.cpp
+        run: |
+          # Install llama.cpp using the official quick-start script
+          curl -LsSf https://llama.app/install.sh | sh
+          # Ensure the installation directory is in the PATH for subsequent steps
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Run model
+        id: model
+        run: |
+          # Run the model with the provided prompt.
+          # --single-turn ensures it exits after generating the response.
+          # --no-display-prompt prevents echoing the prompt in the output.
+          # stderr is redirected to /dev/null to keep the output clean, 
+          # remove 2>/dev/null if you want to see loading/progress logs in the action logs.
+          RESPONSE=$(llama cli -hf "${{ inputs.model }}" -p "${{ inputs.prompt }}" --single-turn --no-display-prompt 2>/dev/null)
+          
+          # Use GitHub Actions multiline output syntax to safely capture the response
+          echo "response<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Write to Step Summary
+        run: |
+          echo "### 🤖 Model Response" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`text" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.model.outputs.response }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
