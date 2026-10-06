@@ -6,11 +6,16 @@ on:
       model:
         description: 'Hugging Face model repository'
         default: 'ggml-org/Qwen3.5-0.8B-GGUF'
+        required: true
         type: string
       swap_size:
         description: 'Swap size'
         default: '8G'
         type: string
+      duration:
+        description: 'Duration (minutes)'
+        default: 15
+        type: number
 
 jobs:
   llama-server:
@@ -51,7 +56,7 @@ jobs:
           for i in {1..120}; do
             if curl -s http://localhost:8080/health | grep -qi 'ok'; then
               echo "Server is successfully loaded and ready!"
-              df -h
+              free -h
               exit 0
             fi
             sleep 3
@@ -71,4 +76,9 @@ jobs:
         run: |
           # Use SSH to create a tunnel. 
           # Running in the foreground keeps the GitHub Actions job alive so the tunnel stays open.
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ~/.ssh/id_rsa -R 80:127.0.0.1:8080 localhost.run
+          ssh -vvv -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ~/.ssh/id_rsa -R 80:127.0.0.1:8080 localhost.run
+
+      - name: Keep alive
+        run: |
+          echo "Keep alive"
+          sleep $(( ${{ inputs.duration }} * 60 ))
