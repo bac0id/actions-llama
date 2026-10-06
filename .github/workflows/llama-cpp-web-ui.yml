@@ -44,18 +44,19 @@ jobs:
       - name: Start llama.cpp server and wait for health check
         run: |
           # Start the server in the background
-          llama serve -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 > server.log 2>&1 &
-          
+          llama serve -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 &
+
           echo "Waiting for server to be ready..."
           # Poll the /health endpoint until it returns ok
           for i in {1..120}; do
-            if curl -s http://localhost:8080/health | grep -q '"status": "ok"'; then
+            if curl -s http://localhost:8080/health | grep -qi 'ok'; then
               echo "Server is successfully loaded and ready!"
+              df -h
               exit 0
             fi
-            sleep 5
+            sleep 3
           done
-          
+
           echo "Server failed to start within the timeout period."
           cat server.log
           exit 1
