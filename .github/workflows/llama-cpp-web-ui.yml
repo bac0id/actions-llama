@@ -64,10 +64,8 @@ jobs:
 
       - name: Start llama.cpp server and wait for health check
         run: |
-          echo "Using model: ${{ inputs.model }}"
-
           # Start the server in the background
-          llama serve -v -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 ${{ inputs.llama_params }} &
+          llama serve -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 ${{ inputs.llama_params }} &
 
           echo "Waiting for server to be ready..."
           # Poll the /health endpoint until it returns ok
