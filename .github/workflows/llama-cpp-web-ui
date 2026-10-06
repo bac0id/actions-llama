@@ -1,0 +1,67 @@
+name: Run llama.cpp Web UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Hugging Face model repository'
+        default: 'ggml-org/Qwen3.5-0.8B-GGUF'
+        type: string
+      swap_size:
+        description: 'Swap size'
+        default: '8G'
+        type: string
+
+jobs:
+  llama-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add Swap
+        run: |
+          sudo fallocate -l ${{ inputs.swap_size }} /swapfile1
+          sudo chmod 600 /swapfile1
+          sudo mkswap /swapfile1
+          sudo swapon /swapfile1
+          echo "Swap enabled:"
+          free -h
+          df -h
+
+      - name: Cache llama.cpp binary
+        id: cache-llama
+        uses: actions/cache@v6
+        with:
+          path: ~/.local/bin/llama
+          key: ${{ runner.os }}-llama-cpp-binary
+
+      - name: Install llama.cpp
+        if: steps.cache-llama.outputs.cache-hit != 'true'
+        run: |
+          curl -LsSf https://llama.app/install.sh | sh
+
+      - name: Add llama.cpp to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Start llama.cpp server and wait for health check
+        run: |
+          # Start the server in the background
+          llama serve -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 > server.log 2>&1 &
+          
+          echo "Waiting for server to be ready..."
+          # Poll the /health endpoint until it returns ok
+          for i in {1..120}; do
+            if curl -s http://localhost:8080/health | grep -q '"status": "ok"'; then
+              echo "Server is successfully loaded and ready!"
+              exit 0
+            fi
+            sleep 5
+          done
+          
+          echo "Server failed to start within the timeout period."
+          cat server.log
+          exit 1
+
+      - name: Expose Web UI via localhost.run
+        run: |
+          # Use SSH to create a tunnel. 
+          # Running in the foreground keeps the GitHub Actions job alive so the tunnel stays open.
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:8080 localhost.run
