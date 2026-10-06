@@ -17,6 +17,9 @@ on:
         default: 15
         type: number
 
+env:
+  LLAMA_CACHE: ~/.cache/llama.cpp
+
 jobs:
   llama-server:
     runs-on: ubuntu-latest
@@ -39,6 +42,13 @@ jobs:
         with:
           path: ~/.local/bin/llama
           key: ${{ runner.os }}-llama-cpp-binary
+
+      - name: Cache LLM models
+        id: cache-models
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.LLAMA_CACHE }}
+          key: ${{ runner.os }}-llama-models-${{ inputs.model }}
 
       - name: Install llama.cpp
         if: steps.cache-llama.outputs.cache-hit != 'true'
