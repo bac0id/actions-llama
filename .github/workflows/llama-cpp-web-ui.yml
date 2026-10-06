@@ -10,7 +10,7 @@ on:
         type: string
       swap_size:
         description: 'Swap size'
-        default: '8G'
+        default: '16G'
         type: string
       duration:
         description: 'Duration (minutes)'
