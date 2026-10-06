@@ -24,13 +24,14 @@ jobs:
     steps:
       - name: Add Swap
         run: |
+          df -hT
           sudo fallocate -l ${{ inputs.swap_size }} /swapfile1
           sudo chmod 600 /swapfile1
           sudo mkswap /swapfile1
           sudo swapon /swapfile1
           echo "Swap enabled:"
           free -h
-          df -h
+          df -hT
 
       - name: Cache llama.cpp binary
         id: cache-llama
@@ -50,11 +51,11 @@ jobs:
       - name: Start llama.cpp server and wait for health check
         run: |
           # Start the server in the background
-          llama serve -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 --agent &
+          llama serve -v -hf ${{ inputs.model }} --host 127.0.0.1 --port 8080 --agent &
 
           echo "Waiting for server to be ready..."
           # Poll the /health endpoint until it returns ok
-          for i in {1..120}; do
+          for i in {1..200}; do
             if curl -s http://localhost:8080/health | grep -qi 'ok'; then
               echo "Server is successfully loaded and ready!"
               free -h
@@ -64,7 +65,6 @@ jobs:
           done
 
           echo "Server failed to start within the timeout period."
-          cat server.log
           exit 1
 
       - name: Setup SSH keys
