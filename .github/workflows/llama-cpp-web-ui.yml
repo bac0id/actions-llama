@@ -61,8 +61,14 @@ jobs:
           cat server.log
           exit 1
 
+      - name: Generate SSH key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keygen -t rsa -f ~/.ssh/id_rsa -N "" -q
+          chmod 600 ~/.ssh/id_rsa
+
       - name: Expose Web UI via localhost.run
         run: |
           # Use SSH to create a tunnel. 
           # Running in the foreground keeps the GitHub Actions job alive so the tunnel stays open.
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -R 80:localhost:8080 localhost.run
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -i ~/.ssh/id_rsa -R 80:127.0.0.1:8080 localhost.run
