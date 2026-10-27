@@ -1,4 +1,4 @@
-name: Run DSH Web UI
+name: Run DSH Web UI - CF
 
 on:
   workflow_dispatch:
