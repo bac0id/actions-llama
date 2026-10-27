@@ -1,4 +1,4 @@
-name: Run DSH Web UI
+name: Run DSH Web UI - localhost.run
 
 on:
   workflow_dispatch:
