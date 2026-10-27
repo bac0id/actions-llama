@@ -1,0 +1,84 @@
+name: Run DSH Web UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      dsh_args:
+        description: "DSH args"
+        default: "--no-open"
+        type: string
+      port:
+        description: "DSH listen port"
+        default: 3080
+        type: number
+      duration:
+        description: "Duration (minutes)"
+        default: 15
+        type: number
+
+jobs:
+  dsh:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          check-latest: true
+
+      - name: Cache npm
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-dsh
+
+      - name: Install DSH
+        run: npm install -g @deepseek-ai/dsh
+
+      - name: Verify dsh
+        run: dsh --version || true
+
+      - name: Start DSH Web UI
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          dsh web --port ${{ inputs.port }} ${{ inputs.dsh_args }} &
+          echo "Waiting for DSH Web UI to be ready..."
+          for i in {1..60}; do
+            if curl -sSf "http://127.0.0.1:${{ inputs.port }}/" >/dev/null 2>&1; then
+              echo "DSH Web UI is up!"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -sSf "http://127.0.0.1:${{ inputs.port }}/" >/dev/null 2>&1; then
+            echo "DSH Web UI failed to start within the timeout period."
+            exit 1
+          fi
+
+      - name: Setup SSH keys
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LOCALHOST_RUN_SSH_PRIVATE_KEY }}
+          SSH_PUBLIC_KEY: ${{ vars.LOCALHOST_RUN_SSH_PUBLIC_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          echo "$SSH_PUBLIC_KEY" > ~/.ssh/id_ed25519.pub
+          chmod 644 ~/.ssh/id_ed25519.pub
+
+          ssh-keyscan -H localhost.run >> ~/.ssh/known_hosts 2>/dev/null
+          echo "SSH keys configured successfully."
+
+      - name: Expose Web UI via localhost.run
+        run: |
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 \
+            -i ~/.ssh/id_ed25519 \
+            -R 80:127.0.0.1:${{ inputs.port }} \
+            localhost.run
+
+      - name: Keep alive
+        run: |
+          echo "Keep alive"
+          sleep $(( ${{ inputs.duration }} * 60 ))
