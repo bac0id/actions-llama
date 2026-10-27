@@ -1,0 +1,114 @@
+name: Run DSH Web UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      dsh_args:
+        description: "DSH args"
+        default: "--no-open"
+        type: string
+      port:
+        description: "DSH listen port"
+        default: 3080
+        type: number
+      duration:
+        description: "Duration (minutes)"
+        default: 15
+        type: number
+
+jobs:
+  dsh:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "lts/*"
+          check-latest: true
+
+      - name: Cache npm
+        uses: actions/cache@v6
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-dsh
+
+      - name: Install DSH
+        run: npm install -g @deepseek-ai/dsh
+
+      - name: Verify dsh
+        run: dsh --version || true
+
+      - name: Start DSH Web UI
+        run: |
+          nohup dsh web --port ${{ inputs.port }} ${{ inputs.dsh_args }} > /tmp/dsh.log 2>&1 &
+          disown || true
+
+          echo "Waiting for DSH Web UI to be ready..."
+          DSH_URL=""
+          for i in {1..60}; do
+            # dsh prints: http://127.0.0.1:PORT/?token=...
+            DSH_URL=$(grep -oE "http://127\.0\.0\.1:${{ inputs.port }}/\?token=[^[:space:]]+" /tmp/dsh.log | head -n1 || true)
+            if [ -n "$DSH_URL" ] && curl -sSf "$DSH_URL" >/dev/null 2>&1; then
+              echo "DSH Web UI is up: $DSH_URL"
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$DSH_URL" ] || ! curl -sSf "$DSH_URL" >/dev/null 2>&1; then
+            echo "DSH Web UI failed to start within the timeout period."
+            echo "----- dsh.log -----"
+            cat /tmp/dsh.log || true
+            exit 1
+          fi
+
+          TOKEN="${DSH_URL##*token=}"
+          echo "DSH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          {
+            echo "### DSH Web UI"
+            echo ""
+            echo "- Local: \`$DSH_URL\`"
+            echo "- Token: \`$TOKEN\`"
+            echo "- Via Cloudflare Tunnel: open the hostname configured in your Cloudflare Tunnel settings with \`/?token=$TOKEN\` appended."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Install cloudflared
+        run: |
+          sudo mkdir -p --mode=0755 /usr/share/keyrings
+          curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main' | sudo tee /etc/apt/sources.list.d/cloudflared.list
+          sudo apt-get update && sudo apt-get install -y cloudflared
+          cloudflared --version
+
+      - name: Start Cloudflare Tunnel
+        env:
+          CLOUDFLARE_TUNNEL_TOKEN: ${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_TUNNEL_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_TUNNEL_TOKEN secret is not set."
+            exit 1
+          fi
+
+          sudo cloudflared service install "$CLOUDFLARE_TUNNEL_TOKEN"
+          echo "Cloudflare Tunnel service installed. It will run in the background."
+
+          sleep 5
+          if ! sudo systemctl is-active --quiet cloudflared; then
+            echo "::error::cloudflared service is not active. Check the token and Cloudflare Tunnel configuration."
+            sudo systemctl status cloudflared --no-pager || true
+            exit 1
+          fi
+          echo "cloudflared service is active."
+          {
+            echo ""
+            echo "### Cloudflare Tunnel"
+            echo ""
+            echo "- The tunnel is running via the \`cloudflared\` system service."
+            echo "- Open the public hostname configured for this tunnel in your Cloudflare dashboard, and append \`/?token=$DSH_TOKEN\` to the URL."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep alive
+        run: |
+          echo "Keep alive for ${{ inputs.duration }} minutes..."
+          sleep $(( ${{ inputs.duration }} * 60 ))
