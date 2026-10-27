@@ -40,22 +40,38 @@ jobs:
         run: dsh --version || true
 
       - name: Start DSH Web UI
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         run: |
-          dsh web --port ${{ inputs.port }} ${{ inputs.dsh_args }} &
+          nohup dsh web --port ${{ inputs.port }} ${{ inputs.dsh_args }} > /tmp/dsh.log 2>&1 &
+          disown || true
+
           echo "Waiting for DSH Web UI to be ready..."
+          DSH_URL=""
           for i in {1..60}; do
-            if curl -sSf "http://127.0.0.1:${{ inputs.port }}/" >/dev/null 2>&1; then
-              echo "DSH Web UI is up!"
+            # dsh prints: http://127.0.0.1:PORT/?token=...
+            DSH_URL=$(grep -oE "http://127\.0\.0\.1:${{ inputs.port }}/\?token=[^[:space:]]+" /tmp/dsh.log | head -n1 || true)
+            if [ -n "$DSH_URL" ] && curl -sSf "$DSH_URL" >/dev/null 2>&1; then
+              echo "DSH Web UI is up: $DSH_URL"
               break
             fi
             sleep 2
           done
-          if ! curl -sSf "http://127.0.0.1:${{ inputs.port }}/" >/dev/null 2>&1; then
+
+          if [ -z "$DSH_URL" ] || ! curl -sSf "$DSH_URL" >/dev/null 2>&1; then
             echo "DSH Web UI failed to start within the timeout period."
+            echo "----- dsh.log -----"
+            cat /tmp/dsh.log || true
             exit 1
           fi
+
+          TOKEN="${DSH_URL##*token=}"
+          echo "DSH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+          {
+            echo "### DSH Web UI"
+            echo ""
+            echo "- Local: \`$DSH_URL\`"
+            echo "- Token: \`$TOKEN\`"
+            echo "- Via localhost.run: open the tunnel URL with \`/?token=$TOKEN\` appended."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Setup SSH keys
         env:
